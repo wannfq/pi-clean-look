@@ -40,112 +40,122 @@ import {
  */
 
 /** A footer that renders nothing — hides pi's default status footer. */
-class EmptyFooter implements Component {
-  render(): string[] {
-    return [];
-  }
-  invalidate(): void {}
-}
+const emptyFooter: Component = {
+  render: () => [],
+  invalidate: () => {},
+};
 
 const BRANCH_FETCH_INTERVAL = 10_000; // 10s
 
 /** Per-session cost accumulator fed by `turn_end` events. */
-class SessionMetrics {
-  private cost = 0;
-
-  onTurnEnd(event: unknown) {
-    const msg = event as { message?: { usage?: { cost?: { total: number } } } };
-    const total = msg.message?.usage?.cost?.total;
-    if (total != null) this.cost += total;
-  }
-
-  get costStr(): string {
-    return formatCost(this.cost);
-  }
+export interface SessionMetrics {
+  onTurnEnd(event: unknown): void;
+  /** Formatted cumulative cost for display (e.g. "$0.12"). */
+  readonly costStr: string;
 }
 
-/** Reference to the active session's metrics (updated on each `session_start`). */
-let currentMetrics: SessionMetrics | null = null;
+/** Create a session-scoped cost accumulator. */
+function createMetrics(): SessionMetrics {
+  let cost = 0;
+  return {
+    onTurnEnd(event: unknown) {
+      const msg = event as {
+        message?: { usage?: { cost?: { total: number } } };
+      };
+      const total = msg.message?.usage?.cost?.total;
+      if (total != null) cost += total;
+    },
+    get costStr() {
+      return formatCost(cost);
+    },
+  };
+}
 
-/** Adapter that asynchronously fetches the current VCS branch (git or jj). */
-class VcsBranchAdapter {
-  private cachedBranch: string | null = null;
-  private inFlight = false;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
+/** Async VCS branch tracker: auto-detects git or jj, cached and refreshed every 10s. */
+export interface VcsTracker {
+  /** Current cached branch name, or null if not yet fetched / unavailable. */
+  readonly branch: string | null;
+  /** Stop the refresh interval. */
+  stop(): void;
+}
 
-  constructor(private exec: ExtensionAPI["exec"]) {}
+/** Create and auto-start a VCS branch tracker for the given cwd. */
+function createVcsTracker(
+  exec: ExtensionAPI["exec"],
+  cwd: string,
+): VcsTracker {
+  let cachedBranch: string | null = null;
+  let inFlight = false;
+  const intervalId = setInterval(() => void refresh(), BRANCH_FETCH_INTERVAL);
 
-  get branch(): string | null {
-    return this.cachedBranch;
-  }
-
-  start(cwd: string) {
-    void this.refresh(cwd);
-    this.intervalId = setInterval(
-      () => void this.refresh(cwd),
-      BRANCH_FETCH_INTERVAL,
-    );
-  }
-
-  stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-  }
-
-  private async refresh(cwd: string): Promise<void> {
-    if (this.inFlight) return;
-    this.inFlight = true;
+  async function refresh(): Promise<void> {
+    if (inFlight) return;
+    inFlight = true;
     try {
-      const gitResult = await this.exec("git", ["branch", "--show-current"], {
+      const gitResult = await exec("git", ["branch", "--show-current"], {
         cwd,
         timeout: 3000,
       });
       if (gitResult.code === 0) {
-        this.cachedBranch = gitResult.stdout.trim() || null;
+        cachedBranch = gitResult.stdout.trim() || null;
         return;
       }
-      const jjResult = await this.exec(
+      const jjResult = await exec(
         "jj",
         ["log", "-r", "@", "-T", "bookmarks", "--no-graph"],
         { cwd, timeout: 3000 },
       );
       if (jjResult.code === 0) {
-        this.cachedBranch = jjResult.stdout.trim() || null;
+        cachedBranch = jjResult.stdout.trim() || null;
         return;
       }
-      this.cachedBranch = null;
+      cachedBranch = null;
     } catch {
-      this.cachedBranch = null;
+      cachedBranch = null;
     } finally {
-      this.inFlight = false;
+      inFlight = false;
     }
   }
+
+  // Kick off the first fetch immediately.
+  void refresh();
+
+  return {
+    get branch() {
+      return cachedBranch;
+    },
+    stop() {
+      clearInterval(intervalId);
+    },
+  };
 }
 
-/** Reference to the active session's VCS adapter (stopped/replaced on each `session_start`). */
-let activeVcs: VcsBranchAdapter | null = null;
+/** Active session state — created on each `session_start`, torn down on the next. */
+interface SessionState {
+  metrics: SessionMetrics;
+  vcs: VcsTracker;
+}
+
+let session: SessionState | null = null;
 
 export default function (pi: ExtensionAPI) {
   // Track cumulative session cost on each turn_end.
   pi.on("turn_end", (event) => {
-    currentMetrics?.onTurnEnd(event);
+    session?.metrics.onTurnEnd(event);
   });
 
   pi.on("session_start", (_event, ctx) => {
-    // Create fresh per-session state and wire it up.
-    const metrics = new SessionMetrics();
-    currentMetrics = metrics;
+    // Tear down the previous session's VCS tracker.
+    session?.vcs.stop();
 
-    activeVcs?.stop();
-    const vcs = new VcsBranchAdapter(pi.exec);
-    activeVcs = vcs;
-    vcs.start(ctx.cwd);
+    // Create fresh per-session state.
+    const metrics = createMetrics();
+    const vcs = createVcsTracker(pi.exec, ctx.cwd);
+    session = { metrics, vcs };
 
     // Hide pi's default footer — its cwd / context-window / model row is now
     // redundant with the status line drawn inside our minimal input box.
-    ctx.ui.setFooter(() => new EmptyFooter());
+    ctx.ui.setFooter(() => emptyFooter);
 
     class MinimalEditor extends CustomEditor {
       constructor(
