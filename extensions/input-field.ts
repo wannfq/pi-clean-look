@@ -206,7 +206,7 @@ export default function (pi: ExtensionAPI) {
           blankBar,
           top: blankBar,
           status: statusLine(prefix, statusLeft, statusRight, width),
-          branchRow: branchStr
+          footerRow: branchStr
             ? buildFullWidthRow(cwdStr, branchStr, width)
             : " " + cwdStr,
         });

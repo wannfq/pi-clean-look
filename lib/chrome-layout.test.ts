@@ -9,7 +9,7 @@ describe("composeChrome", () => {
     blankBar: "┃                   ",
     top: "┃                   ",
     status: "┃  status          ",
-    branchRow: " ~/foo         main ",
+    footerRow: " ~/foo         main ",
   };
 
   it("replaces the top border with the blank top line", () => {
@@ -52,7 +52,7 @@ describe("composeChrome", () => {
     const out = composeChrome(input);
     expect(out[out.length - 3]).toBe(input.blankBar);
     expect(out[out.length - 2]).toBe(input.status);
-    expect(out[out.length - 1]).toBe(input.branchRow);
+    expect(out[out.length - 1]).toBe(input.footerRow);
   });
 
   it("truncates content lines to reclaim the prefix width", () => {

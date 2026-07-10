@@ -23,7 +23,7 @@ export interface ChromeInput {
   /** Status row that replaces the editor's bottom border. */
   status: string;
   /** Bottom row drawn outside the box (cwd + branch). */
-  branchRow: string;
+  footerRow: string;
 }
 
 /**
@@ -38,7 +38,7 @@ export interface ChromeInput {
  *   width via ANSI-aware truncation.
  */
 export function composeChrome(input: ChromeInput): string[] {
-  const { editorLines, width, prefix, blankBar, top, status, branchRow } =
+  const { editorLines, width, prefix, blankBar, top, status, footerRow } =
     input;
   const contentCap = Math.max(0, width - visibleWidth(prefix));
 
@@ -74,6 +74,6 @@ export function composeChrome(input: ChromeInput): string[] {
     out.push(status);
   }
 
-  out.push(branchRow);
+  out.push(footerRow);
   return out;
 }
