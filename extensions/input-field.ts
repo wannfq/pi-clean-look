@@ -211,13 +211,8 @@ export default function (pi: ExtensionAPI) {
 						" " +
 						this.borderColor(`${thinking} `)
 					: thm.fg("muted", "no model ");
-				let contextColor: "accent" | "warning" | "error" = "accent";
-				if (typeof contextPercent === "number") {
-					if (contextPercent >= 90) contextColor = "error";
-					else if (contextPercent >= 70) contextColor = "warning";
-				}
 				const statusRight =
-					thm.fg(contextColor, ctxPct) +
+					thm.fg("accent", ctxPct) +
 					thm.fg("muted", `/${ctxK} `) +
 					this.borderColor(metrics.costStr) +
 					" ";
