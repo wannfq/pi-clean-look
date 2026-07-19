@@ -12,10 +12,13 @@
     "extensions": [
       "./extensions/input-field.ts",
       "./extensions/startup-screen.ts"
+    ],
+    "themes": [
+      "./themes"
     ]
   },
   "scripts": {
-    "dev": "pi --no-extensions -e ./extensions/input-field.ts -e ./extensions/startup-screen.ts",
+    "dev": "pi --no-extensions --no-themes --theme ./themes/pastel-dark.json -e ./extensions/input-field.ts -e ./extensions/startup-screen.ts",
     "check": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --skipLibCheck extensions/input-field.ts extensions/startup-screen.ts lib/text-layout.ts lib/chrome-layout.ts lib/git-status.ts",
     "test": "vitest run",
     "dev:startup": "pi --no-extensions -e ./extensions/startup-screen.ts",

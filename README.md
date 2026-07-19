@@ -14,6 +14,16 @@ Then enable/disable modules in the resource config TUI:
 pi config
 ```
 
+## Themes
+
+The package includes two Catppuccin-inspired pastel themes that also style the
+thinking-level input border:
+
+- `pastel-dark` — a soft Mocha-inspired dark palette
+- `pastel-light` — a warm Latte-inspired light palette
+
+Select either theme from `/settings` after installation.
+
 ## Recommended settings
 
 Enable quiet startup to suppress Pi's default startup banner — the startup screen module replaces it with a cleaner centered header:
@@ -30,8 +40,6 @@ In the config TUI, set `quietStartup` to `true`. Or add it directly to `~/.pi/ag
 }
 ```
 
-
-
 ## Preview
 
 <picture>
@@ -41,12 +49,10 @@ In the config TUI, set `quietStartup` to `true`. Or add it directly to `~/.pi/ag
 <!-- Text fallback for terminals / blocked images -->
 <pre>
 
-
                                           ██████
                                           ██  ██
                                           ████  ██
                                           ██    ██ v0.80.6
-
 
 ┃
 ┃ █
@@ -73,6 +79,8 @@ Edit, then type `/reload` inside pi for live updates.
 | `extensions/startup-screen.ts` | Startup header: centered ASCII "pi" icon and version. |
 | `lib/text-layout.ts` | Pure ANSI-aware text helpers used by both extensions. |
 | `lib/chrome-layout.ts` | Pure composer for the minimal editor chrome. |
+| `themes/pastel-dark.json` | Catppuccin-inspired dark theme. |
+| `themes/pastel-light.json` | Catppuccin-inspired light theme. |
 
 ## Test
 
