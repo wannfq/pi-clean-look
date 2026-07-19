@@ -214,29 +214,27 @@ export default function (pi: ExtensionAPI) {
 				const statusRight =
 					thm.fg("accent", ctxPct) +
 					thm.fg("muted", `/${ctxK} `) +
-					this.borderColor(metrics.costStr) +
+					thm.fg("text", metrics.costStr) +
 					" ";
 
 				const cwdStr = thm.fg("text", formatCwd(ctx.cwd));
 				const git = vcs.snapshot;
-				const gitCount = (indicator: string, count: number) =>
-					count > 0 ? thm.fg("muted", `${indicator}${count}`) : null;
+				const gitCount = (
+					indicator: string,
+					count: number,
+					color: "muted" | "warning" | "error",
+				) => (count > 0 ? thm.fg(color, `${indicator}${count}`) : null);
 				let gitStr = thm.fg("muted", "-");
 				if (git) {
-					let branch = "HEAD";
-					let branchColor: "accent" | "muted" = "muted";
-					if (git.branch) {
-						branch = git.branch;
-						branchColor = "accent";
-					}
+					const branch = git.branch ?? "HEAD";
 					gitStr = [
-						thm.fg(branchColor, branch),
-						gitCount("+", git.status.staged),
-						gitCount("!", git.status.modified),
-						gitCount("-", git.status.deleted),
-						gitCount("?", git.status.untracked),
-						gitCount("R", git.status.renamed),
-						gitCount("U", git.status.conflicted),
+						thm.fg(git.branch ? "success" : "muted", branch),
+						gitCount("+", git.status.staged, "warning"),
+						gitCount("!", git.status.modified, "warning"),
+						gitCount("-", git.status.deleted, "warning"),
+						gitCount("?", git.status.untracked, "muted"),
+						gitCount("R", git.status.renamed, "warning"),
+						gitCount("U", git.status.conflicted, "error"),
 					]
 						.filter((part): part is string => part !== null)
 						.join(" ");

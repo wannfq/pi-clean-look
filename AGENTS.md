@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**pi-clean-look** is a [Pi](https://github.com/earendil-works/pi) extension that gives Pi a minimal look, inspired by opencode's TUI. It currently ships two deliverables:
+**pi-cozy-ui** is a [Pi](https://github.com/earendil-works/pi) extension that gives Pi a minimal look, inspired by opencode's TUI. It currently ships two deliverables:
 
 1. **Minimal editor module** (`extensions/input-field.ts`) — replaces Pi's default input/prompt box with a left-bar (`┃`) design and an embedded muted status row (cwd · context-window usage · model · thinking level).
 2. **Startup screen module** (`extensions/startup-screen.ts`) — replaces Pi's default header with a centered ASCII "pi" icon and version string, padded by 2 blank lines above and below.

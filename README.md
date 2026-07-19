@@ -1,11 +1,11 @@
-# pi-clean-look
+# pi-cozy-ui
 
-A clean look for [pi](https://pi.dev) — a minimal left-bar input box and startup screen.
+A cozy UI for [pi](https://pi.dev) — a minimal left-bar input box, startup screen, and pastel themes.
 
 ## Install
 
 ```bash
-pi install git:github.com/wannfq/pi-clean-look
+pi install git:github.com/wannfq/pi-cozy-ui
 ```
 
 Then enable/disable modules in the resource config TUI:
@@ -42,24 +42,7 @@ In the config TUI, set `quietStartup` to `true`. Or add it directly to `~/.pi/ag
 
 ## Preview
 
-<picture>
-<img alt="pi-clean-look preview" src="docs/preview.svg">
-</picture>
-
-<!-- Text fallback for terminals / blocked images -->
-<pre>
-
-                                          ██████
-                                          ██  ██
-                                          ████  ██
-                                          ██    ██ v0.80.6
-
-┃
-┃ █
-┃
-┃ opencode-go/glm-5.2:high                                                              0%/1000k $0
- ~/projects/pi-clean-look                                                                      main
-</pre>
+![pi-cozy-ui preview](docs/preview.png)
 
 ## Develop
 

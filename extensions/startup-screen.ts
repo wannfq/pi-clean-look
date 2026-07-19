@@ -9,7 +9,7 @@ import { center } from "../lib/text-layout.js";
  *
  * Layout:
  *   - 2 blank lines (top padding)
- *   - Centered "pi" ASCII art icon, tinted with the theme accent color
+ *   - Centered "pi" ASCII art icon in the theme text color
  *   - Centered version string below the icon, muted
  *   - 2 blank lines (bottom padding)
  *
@@ -21,43 +21,43 @@ const LOGO = ["██████  ", "██  ██  ", "████  ██"
 
 /** Create the startup header component that renders the centered "pi" logo. */
 function createStartupHeader(theme: Theme): Component {
-  return {
-    render(width: number): string[] {
-      const thm = theme;
-      const lines: string[] = [];
+	return {
+		render(width: number): string[] {
+			const thm = theme;
+			const lines: string[] = [];
 
-      lines.push("");
-      lines.push("");
+			lines.push("");
+			lines.push("");
 
-      // Build logo lines with version on the right side, bottom-aligned.
-      const versionStr = `v${piVersion}`;
-      const versionLineIdx = LOGO.length - 1;
-      const coloredLines = LOGO.map((row, i) => {
-        const logoColored = thm.fg("accent", row);
-        if (i === versionLineIdx) {
-          return logoColored + " " + thm.fg("muted", versionStr);
-        }
-        return logoColored;
-      });
-      // Equalize visible width so centering aligns the logo uniformly.
-      const maxVis = Math.max(...coloredLines.map((s) => visibleWidth(s)));
-      for (const s of coloredLines) {
-        const padded = s + " ".repeat(maxVis - visibleWidth(s));
-        lines.push(center(padded, width));
-      }
+			// Build logo lines with version on the right side, bottom-aligned.
+			const versionStr = `v${piVersion}`;
+			const versionLineIdx = LOGO.length - 1;
+			const coloredLines = LOGO.map((row, i) => {
+				const logoColored = thm.fg("text", row);
+				if (i === versionLineIdx) {
+					return logoColored + " " + thm.fg("muted", versionStr);
+				}
+				return logoColored;
+			});
+			// Equalize visible width so centering aligns the logo uniformly.
+			const maxVis = Math.max(...coloredLines.map((s) => visibleWidth(s)));
+			for (const s of coloredLines) {
+				const padded = s + " ".repeat(maxVis - visibleWidth(s));
+				lines.push(center(padded, width));
+			}
 
-      lines.push("");
+			lines.push("");
 
-      return lines;
-    },
-    invalidate: () => {},
-  };
+			return lines;
+		},
+		invalidate: () => {},
+	};
 }
 
 export default function (pi: ExtensionAPI) {
-  pi.on("session_start", (_event, ctx) => {
-    if (ctx.mode !== "tui") return;
+	pi.on("session_start", (_event, ctx) => {
+		if (ctx.mode !== "tui") return;
 
-    ctx.ui.setHeader((_tui, theme) => createStartupHeader(theme));
-  });
+		ctx.ui.setHeader((_tui, theme) => createStartupHeader(theme));
+	});
 }
