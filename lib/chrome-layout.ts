@@ -10,26 +10,24 @@ import { isBorderLine } from "./text-layout.js";
  */
 
 export interface ChromeInput {
-  /** Raw lines from the parent editor (`super.render(width)`). */
-  editorLines: string[];
-  /** Terminal width in columns. */
-  width: number;
-  /** Left-bar prefix including inset (e.g. colored "┃  "). */
-  prefix: string;
-  /** Blank bar line spanning full width (used above/below the status row). */
-  blankBar: string;
-  /** Line that replaces the editor's top border. */
-  top: string;
-  /** Status row that replaces the editor's bottom border. */
-  status: string;
-  /** Bottom row drawn outside the box (cwd + branch). */
-  footerRow: string;
+	/** Raw lines from the parent editor (`super.render(width)`). */
+	editorLines: string[];
+	/** Terminal width in columns. */
+	width: number;
+	/** Left-bar prefix including inset (e.g. colored "┃  "). */
+	prefix: string;
+	/** Blank bar line spanning full width immediately above the status row. */
+	blankBar: string;
+	/** Status row that replaces the editor's bottom border. */
+	status: string;
+	/** Bottom row drawn outside the box (cwd + branch). */
+	footerRow: string;
 }
 
 /**
  * Compose the final rendered lines for the minimal editor chrome.
  *
- * - Replaces the top border with `top`.
+ * - Removes the editor's top border so the input begins immediately.
  * - Finds the last border-like line (the bottom border) and replaces it with
  *   `blankBar` followed by `status`.
  * - Passes through any lines after the bottom border unchanged (autocomplete
@@ -38,42 +36,38 @@ export interface ChromeInput {
  *   width via ANSI-aware truncation.
  */
 export function composeChrome(input: ChromeInput): string[] {
-  const { editorLines, width, prefix, blankBar, top, status, footerRow } =
-    input;
-  const contentCap = Math.max(0, width - visibleWidth(prefix));
+	const { editorLines, width, prefix, blankBar, status, footerRow } = input;
+	const contentCap = Math.max(0, width - visibleWidth(prefix));
 
-  // The bottom border is the last border-like line before any autocomplete
-  // dropdown lines (which are non-border).
-  let bottomIndex = -1;
-  for (let i = 1; i < editorLines.length; i++) {
-    if (isBorderLine(editorLines[i])) bottomIndex = i;
-  }
+	// The bottom border is the last border-like line before any autocomplete
+	// dropdown lines (which are non-border).
+	let bottomIndex = -1;
+	for (let i = 1; i < editorLines.length; i++) {
+		if (isBorderLine(editorLines[i])) bottomIndex = i;
+	}
 
-  const out: string[] = [];
-  for (let i = 0; i < editorLines.length; i++) {
-    if (i === 0) {
-      out.push(top);
-      continue;
-    }
-    if (i === bottomIndex) {
-      out.push(blankBar);
-      out.push(status);
-      continue;
-    }
-    if (bottomIndex !== -1 && i > bottomIndex) {
-      // Autocomplete dropdown: do not add the left bar.
-      out.push(editorLines[i]);
-      continue;
-    }
-    out.push(prefix + truncateToWidth(editorLines[i], contentCap, ""));
-  }
+	const out: string[] = [];
+	for (let i = 0; i < editorLines.length; i++) {
+		if (i === 0) continue;
+		if (i === bottomIndex) {
+			out.push(blankBar);
+			out.push(status);
+			continue;
+		}
+		if (bottomIndex !== -1 && i > bottomIndex) {
+			// Autocomplete dropdown: do not add the left bar.
+			out.push(editorLines[i]);
+			continue;
+		}
+		out.push(prefix + truncateToWidth(editorLines[i], contentCap, ""));
+	}
 
-  // Fallback when the editor did not provide a recognizable bottom border.
-  if (bottomIndex === -1) {
-    out.push(blankBar);
-    out.push(status);
-  }
+	// Fallback when the editor did not provide a recognizable bottom border.
+	if (bottomIndex === -1) {
+		out.push(blankBar);
+		out.push(status);
+	}
 
-  out.push(footerRow);
-  return out;
+	out.push(footerRow);
+	return out;
 }

@@ -1,15 +1,16 @@
 import {
-  CustomEditor,
-  type ExtensionAPI,
-  type KeybindingsManager,
+	CustomEditor,
+	type ExtensionAPI,
+	type KeybindingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { composeChrome } from "../lib/chrome-layout.js";
+import { parseGitStatus, type GitStatusCounts } from "../lib/git-status.js";
 import {
-  buildFullWidthRow,
-  formatCost,
-  formatCwd,
-  statusLine,
+	buildFullWidthRow,
+	formatCost,
+	formatCwd,
+	statusLine,
 } from "../lib/text-layout.js";
 
 /**
@@ -20,10 +21,12 @@ import {
  *     enclosing border), tinted to the thinking level (pi's indicator).
  *   - Input text inset by 2 spaces.
  *   - A status row below the input INSIDE the bar: `provider/model:thinking`
- *     (left) and `${ctx %}/${ctxK} $cost` (right), all muted. Cost is
- *     cumulative for the session, tracked via `turn_end` events.
- *   - Bottom row OUTSIDE the box: cwd (left, 1-space pad) and branch name
- *     (right) — auto-detects git or jujutsu, cached and refreshed every 10s.
+ *     (left) and `${ctx %}/${ctxK} $cost` (right). Provider and separators are
+ *     muted; model, thinking, context usage, and cost use theme-aware accents.
+ *     Cost is cumulative for the session, tracked via `turn_end` events.
+ *   - Bottom row OUTSIDE the box: cwd (left, 1-space pad) and Git branch plus
+ *     colored working-tree counts (right), cached and refreshed every 10s.
+ *     Non-Git directories render `-`.
  *
  * Implementation notes:
  *   - We must NOT string-slice pi's editor output: lines contain the
@@ -41,182 +44,223 @@ import {
 
 /** A footer that renders nothing — hides pi's default status footer. */
 const emptyFooter: Component = {
-  render: () => [],
-  invalidate: () => {},
+	render: () => [],
+	invalidate: () => {},
 };
 
 const BRANCH_FETCH_INTERVAL = 10_000; // 10s
 
 /** Per-session cost accumulator fed by `turn_end` events. */
 export interface SessionMetrics {
-  onTurnEnd(event: unknown): void;
-  /** Formatted cumulative cost for display (e.g. "$0.12"). */
-  readonly costStr: string;
+	onTurnEnd(event: unknown): void;
+	/** Formatted cumulative cost for display (e.g. "$0.12"). */
+	readonly costStr: string;
 }
 
 /** Create a session-scoped cost accumulator. */
 function createMetrics(): SessionMetrics {
-  let cost = 0;
-  return {
-    onTurnEnd(event: unknown) {
-      const msg = event as {
-        message?: { usage?: { cost?: { total: number } } };
-      };
-      const total = msg.message?.usage?.cost?.total;
-      if (total != null) cost += total;
-    },
-    get costStr() {
-      return formatCost(cost);
-    },
-  };
+	let cost = 0;
+	return {
+		onTurnEnd(event: unknown) {
+			const msg = event as {
+				message?: { usage?: { cost?: { total: number } } };
+			};
+			const total = msg.message?.usage?.cost?.total;
+			if (total != null) cost += total;
+		},
+		get costStr() {
+			return formatCost(cost);
+		},
+	};
 }
 
-/** Async VCS branch tracker: auto-detects git or jj, cached and refreshed every 10s. */
-export interface VcsTracker {
-  /** Current cached branch name, or null if not yet fetched / unavailable. */
-  readonly branch: string | null;
-  /** Stop the refresh interval. */
-  stop(): void;
+/** Cached Git branch and working-tree state for the footer. */
+export interface GitSnapshot {
+	branch: string | null;
+	status: GitStatusCounts;
 }
 
-/** Create and auto-start a VCS branch tracker for the given cwd. */
-function createVcsTracker(
-  exec: ExtensionAPI["exec"],
-  cwd: string,
-): VcsTracker {
-  let cachedBranch: string | null = null;
-  let inFlight = false;
-  const intervalId = setInterval(() => void refresh(), BRANCH_FETCH_INTERVAL);
+/** Async Git tracker, cached and refreshed every 10s. */
+export interface GitTracker {
+	/** Current Git state, or null if unavailable / outside a Git work tree. */
+	readonly snapshot: GitSnapshot | null;
+	/** Stop the refresh interval. */
+	stop(): void;
+}
 
-  async function refresh(): Promise<void> {
-    if (inFlight) return;
-    inFlight = true;
-    try {
-      const gitResult = await exec("git", ["branch", "--show-current"], {
-        cwd,
-        timeout: 3000,
-      });
-      if (gitResult.code === 0) {
-        cachedBranch = gitResult.stdout.trim() || null;
-        return;
-      }
-      const jjResult = await exec(
-        "jj",
-        ["log", "-r", "@", "-T", "bookmarks", "--no-graph"],
-        { cwd, timeout: 3000 },
-      );
-      if (jjResult.code === 0) {
-        cachedBranch = jjResult.stdout.trim() || null;
-        return;
-      }
-      cachedBranch = null;
-    } catch {
-      cachedBranch = null;
-    } finally {
-      inFlight = false;
-    }
-  }
+/** Create and auto-start a Git tracker for the given cwd. */
+function createGitTracker(
+	exec: ExtensionAPI["exec"],
+	cwd: string,
+	onChange: () => void,
+): GitTracker {
+	let cachedSnapshot: GitSnapshot | null = null;
+	let inFlight = false;
+	const intervalId = setInterval(() => void refresh(), BRANCH_FETCH_INTERVAL);
 
-  // Kick off the first fetch immediately.
-  void refresh();
+	function setSnapshot(snapshot: GitSnapshot | null): void {
+		cachedSnapshot = snapshot;
+		onChange();
+	}
 
-  return {
-    get branch() {
-      return cachedBranch;
-    },
-    stop() {
-      clearInterval(intervalId);
-    },
-  };
+	async function refresh(): Promise<void> {
+		if (inFlight) return;
+		inFlight = true;
+		try {
+			const statusResult = await exec(
+				"git",
+				["status", "--porcelain=v1", "-z"],
+				{ cwd, timeout: 3000 },
+			);
+			if (statusResult.code !== 0) {
+				setSnapshot(null);
+				return;
+			}
+
+			const branchResult = await exec("git", ["branch", "--show-current"], {
+				cwd,
+				timeout: 3000,
+			});
+			setSnapshot({
+				branch:
+					branchResult.code === 0 ? branchResult.stdout.trim() || null : null,
+				status: parseGitStatus(statusResult.stdout),
+			});
+		} catch {
+			setSnapshot(null);
+		} finally {
+			inFlight = false;
+		}
+	}
+
+	// Kick off the first fetch immediately.
+	void refresh();
+
+	return {
+		get snapshot() {
+			return cachedSnapshot;
+		},
+		stop() {
+			clearInterval(intervalId);
+		},
+	};
 }
 
 /** Active session state — created on each `session_start`, torn down on the next. */
 interface SessionState {
-  metrics: SessionMetrics;
-  vcs: VcsTracker;
+	metrics: SessionMetrics;
+	vcs: GitTracker;
 }
 
 let session: SessionState | null = null;
 
 export default function (pi: ExtensionAPI) {
-  // Track cumulative session cost on each turn_end.
-  pi.on("turn_end", (event) => {
-    session?.metrics.onTurnEnd(event);
-  });
+	// Track cumulative session cost on each turn_end.
+	pi.on("turn_end", (event) => {
+		session?.metrics.onTurnEnd(event);
+	});
 
-  pi.on("session_start", (_event, ctx) => {
-    // Tear down the previous session's VCS tracker.
-    session?.vcs.stop();
+	pi.on("session_start", (_event, ctx) => {
+		// Tear down the previous session's Git tracker.
+		session?.vcs.stop();
 
-    // Create fresh per-session state.
-    const metrics = createMetrics();
-    const vcs = createVcsTracker(pi.exec, ctx.cwd);
-    session = { metrics, vcs };
+		// Create fresh per-session state.
+		const metrics = createMetrics();
+		let requestRender = () => {};
+		const vcs = createGitTracker(pi.exec, ctx.cwd, () => requestRender());
+		session = { metrics, vcs };
 
-    // Hide pi's default footer — its cwd / context-window / model row is now
-    // redundant with the status line drawn inside our minimal input box.
-    ctx.ui.setFooter(() => emptyFooter);
+		// Hide pi's default footer — its cwd / context-window / model row is now
+		// redundant with the status line drawn inside our minimal input box.
+		ctx.ui.setFooter(() => emptyFooter);
 
-    class MinimalEditor extends CustomEditor {
-      constructor(
-        tui: TUI,
-        theme: EditorTheme,
-        keybindings: KeybindingsManager,
-      ) {
-        super(tui, theme, keybindings, { paddingX: 0 });
-      }
+		class MinimalEditor extends CustomEditor {
+			constructor(
+				tui: TUI,
+				theme: EditorTheme,
+				keybindings: KeybindingsManager,
+			) {
+				super(tui, theme, keybindings, { paddingX: 0 });
+			}
 
-      render(width: number): string[] {
-        const lines = super.render(width);
-        if (lines.length === 0) return lines;
+			render(width: number): string[] {
+				const lines = super.render(width);
+				if (lines.length === 0) return lines;
 
-        const thm = ctx.ui.theme;
-        const bar = (text: string) => this.borderColor(text);
-        const prefix = bar("┃") + " ";
-        const blankBar = bar("┃") + " ".repeat(Math.max(0, width - 1));
+				const thm = ctx.ui.theme;
+				const bar = (text: string) => this.borderColor(text);
+				const prefix = bar("┃") + " ";
+				const blankBar = bar("┃") + " ".repeat(Math.max(0, width - 1));
 
-        const model = ctx.model
-          ? `${ctx.model.provider}/${ctx.model.id}`
-          : "no model";
-        const usage = ctx.getContextUsage();
-        const ctxPct =
-          usage?.percent != null ? `${Math.round(usage.percent)}%` : "?";
-        const contextWindow =
-          usage?.contextWindow ?? ctx.model?.contextWindow;
-        const ctxK = contextWindow
-          ? `${(contextWindow / 1000).toFixed(0)}k`
-          : "?";
+				const usage = ctx.getContextUsage();
+				const contextPercent = usage?.percent;
+				const ctxPct =
+					typeof contextPercent === "number"
+						? `${Math.round(contextPercent)}%`
+						: "?";
+				const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow;
+				const ctxK = contextWindow
+					? `${(contextWindow / 1000).toFixed(0)}k`
+					: "?";
 
-        const statusLeft = thm.fg(
-          "muted",
-          `${model}:${pi.getThinkingLevel()} `,
-        );
-        const statusRight = thm.fg(
-          "muted",
-          `${ctxPct}/${ctxK} ${metrics.costStr} `,
-        );
+				const thinking = pi.getThinkingLevel();
+				const statusLeft = ctx.model
+					? thm.fg("muted", ctx.model.provider) +
+						thm.fg("muted", "/") +
+						thm.fg("accent", ctx.model.id) +
+						" " +
+						this.borderColor(`${thinking} `)
+					: thm.fg("muted", "no model ");
+				let contextColor: "accent" | "warning" | "error" = "accent";
+				if (typeof contextPercent === "number") {
+					if (contextPercent >= 90) contextColor = "error";
+					else if (contextPercent >= 70) contextColor = "warning";
+				}
+				const statusRight =
+					thm.fg(contextColor, ctxPct) +
+					thm.fg("muted", `/${ctxK} `) +
+					this.borderColor(metrics.costStr) +
+					" ";
 
-        const cwdStr = thm.fg("text", formatCwd(ctx.cwd));
-        const branchStr = vcs.branch ? thm.fg("text", vcs.branch) : null;
+				const cwdStr = thm.fg("text", formatCwd(ctx.cwd));
+				const git = vcs.snapshot;
+				const gitCount = (indicator: string, count: number) =>
+					count > 0 ? thm.fg("muted", `${indicator}${count}`) : null;
+				let gitStr = thm.fg("muted", "-");
+				if (git) {
+					let branch = "HEAD";
+					let branchColor: "accent" | "muted" = "muted";
+					if (git.branch) {
+						branch = git.branch;
+						branchColor = "accent";
+					}
+					gitStr = [
+						thm.fg(branchColor, branch),
+						gitCount("+", git.status.staged),
+						gitCount("!", git.status.modified),
+						gitCount("-", git.status.deleted),
+						gitCount("?", git.status.untracked),
+						gitCount("R", git.status.renamed),
+						gitCount("U", git.status.conflicted),
+					]
+						.filter((part): part is string => part !== null)
+						.join(" ");
+				}
 
-        return composeChrome({
-          editorLines: lines,
-          width,
-          prefix,
-          blankBar,
-          top: blankBar,
-          status: statusLine(prefix, statusLeft, statusRight, width),
-          footerRow: branchStr
-            ? buildFullWidthRow(cwdStr, branchStr, width)
-            : " " + cwdStr,
-        });
-      }
-    }
+				return composeChrome({
+					editorLines: lines,
+					width,
+					prefix,
+					blankBar,
+					status: statusLine(prefix, statusLeft, statusRight, width),
+					footerRow: buildFullWidthRow(cwdStr, gitStr, width),
+				});
+			}
+		}
 
-    ctx.ui.setEditorComponent(
-      (tui, theme, keybindings) => new MinimalEditor(tui, theme, keybindings),
-    );
-  });
+		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
+			requestRender = () => tui.requestRender();
+			return new MinimalEditor(tui, theme, keybindings);
+		});
+	});
 }
-
-

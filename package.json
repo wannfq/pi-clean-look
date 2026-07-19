@@ -16,7 +16,7 @@
   },
   "scripts": {
     "dev": "pi --no-extensions -e ./extensions/input-field.ts -e ./extensions/startup-screen.ts",
-    "check": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --skipLibCheck extensions/input-field.ts extensions/startup-screen.ts lib/text-layout.ts lib/chrome-layout.ts",
+    "check": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --skipLibCheck extensions/input-field.ts extensions/startup-screen.ts lib/text-layout.ts lib/chrome-layout.ts lib/git-status.ts",
     "test": "vitest run",
     "dev:startup": "pi --no-extensions -e ./extensions/startup-screen.ts",
     "dev:input": "pi --no-extensions -e ./extensions/input-field.ts"
