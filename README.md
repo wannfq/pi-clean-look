@@ -1,6 +1,11 @@
 # pi-cozy-ui
 
-A cozy UI for [pi](https://pi.dev) — a minimal left-bar input box, startup screen, and cozy themes.
+A cozy UI for [pi](https://pi.dev) — a minimal input box, startup screen, and cozy themes.
+
+Inspirations:
+
+- Opencode input box
+- Catppucin color pallete
 
 ## Install
 
@@ -28,8 +33,8 @@ Select either theme from `/settings` after installation.
 
 For the best experience:
 
-1. Move `pi-cozy-ui` to the top of Pi's package list in `pi config` so it
-   takes precedence over other UI customizations.
+1. Move `pi-cozy-ui` after packages that customize Pi's input or startup screen
+   in `pi config`. Placing it last is a good default, but isn't required.
 2. Select either `cozy-dark` or `cozy-light` from `/settings`.
 3. Enable quiet startup to suppress Pi's default banner; the startup screen
    module replaces it with a cleaner centered header.
