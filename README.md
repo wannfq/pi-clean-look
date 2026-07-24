@@ -5,7 +5,7 @@ A cozy UI for [pi](https://pi.dev) — a minimal input box, startup screen, and 
 Inspirations:
 
 - Opencode input box
-- Catppucin color pallete
+- Catppuccin color pallete
 
 ## Install
 
@@ -47,7 +47,7 @@ In the config TUI, set `quietStartup` to `true`. Or add it directly to `~/.pi/ag
 
 ```json
 {
-	"quietStartup": true
+ "quietStartup": true
 }
 ```
 
