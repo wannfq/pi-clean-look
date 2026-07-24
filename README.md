@@ -47,7 +47,7 @@ In the config TUI, set `quietStartup` to `true`. Or add it directly to `~/.pi/ag
 
 ```json
 {
- "quietStartup": true
+	"quietStartup": true
 }
 ```
 
