@@ -1,11 +1,11 @@
 # pi-cozy-ui
 
-A cozy UI for [pi](https://pi.dev) — a minimal input box, startup screen, and cozy themes.
+A cozy UI for [Pi](https://pi.dev) — a minimal input box, startup screen, and cozy themes.
 
 Inspirations:
 
-- Opencode input box
-- Catppuccin color pallete
+- [OpenCode](https://github.com/sst/opencode) input box
+- [Catppuccin](https://github.com/catppuccin/catppuccin) color palette
 
 ## Install
 

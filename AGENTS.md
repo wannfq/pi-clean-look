@@ -93,3 +93,36 @@ pnpm test    # vitest, runs .test.ts files under lib/
 ```
 
 `vitest` (added as a dev dependency) runs TypeScript test files without a build step, matching the repo's no-build convention. Good unit-test candidates are the pure helpers in `lib/text-layout.ts` and the pure composer in `lib/editor-layout.ts`.
+
+## Releasing
+
+Releases are published to both the npm registry and GitHub. The maintainer's npm account uses browser-based 2FA, so `npm publish` must run interactively (not headless) — the operator completes a web auth/OTP flow in the browser.
+
+Release steps:
+
+1. Bump the version in `package.json` (`npm version patch --no-git-tag-version`, or edit directly).
+2. Commit with `release: vX.Y.Z` and create the matching git tag, then push `main` and the tag:
+
+    ```bash
+    git push origin main && git push origin vX.Y.Z
+    ```
+
+3. Create the GitHub release from the tag (`gh release create vX.Y.Z ...`).
+4. Publish to npm **via `interactive_shell` (hands-free mode)** so the 2FA web login can complete interactively:
+
+    ```typescript
+    interactive_shell({
+    	command: "npm login && npm publish",
+    	mode: "hands-free",
+    });
+    ```
+
+    - `npm login` prints a browser URL; the user opens it, completes auth, and presses **Enter** in the overlay.
+    - On success `+ pi-cozy-ui@X.Y.Z` is printed and the session exits 0.
+    - Do **not** run `npm publish` via the plain `bash` tool — a stale/expired auth token surfaces as a 404 (E404) rather than a 401, and cannot trigger the required 2FA flow.
+
+5. Confirm propagation (the registry CDN lags ~30s) before declaring done:
+
+    ```bash
+    curl -s https://registry.npmjs.org/pi-cozy-ui/latest | grep -o '"version":"[^"]*"'
+    ```
